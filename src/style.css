@@ -691,6 +691,10 @@ kbd { font-size: 0.85em; border: 1px solid var(--line-strong); border-bottom-wid
 a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 @media (max-width: 800px) {
   .topbar { flex-wrap: nowrap; }
-  .link-14 span, .link-15 span { display: none; }
+  .link-13 span:not(.lw), .link-14 span:not(.lw), .link-15 span:not(.lw) { display: none; }
   .topbar .btn { padding: 6px 8px; }
+}
+@media (max-width: 520px) {
+  .lw { display: none; }
+  .topbar .btn { padding: 6px 6px; }
 }

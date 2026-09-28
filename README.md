@@ -6,6 +6,8 @@
 
 **Открыть:** https://yarclub2010-glitch.github.io/oge16/
 
+Тренажёр задания 13 (презентация или текстовый документ): https://yarclub2010-glitch.github.io/oge13/
+
 Тренажёр задания 14 (электронные таблицы): https://yarclub2010-glitch.github.io/oge14/
 
 Тренажёр задания 15 (исполнитель Робот): https://yarclub2010-glitch.github.io/oge15/
