@@ -771,3 +771,8 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
   border-top: 1px solid var(--line);
 }
 .mk-actions input { flex: 1 1 220px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+
+/* Задание по ссылке учителя: ученик видит только его */
+.link-mode .task-picker, .link-mode #btn-maker,
+.link-mode .link-13, .link-mode .link-14, .link-mode .link-15 { display: none; }
+.link-mode .brand { pointer-events: none; }

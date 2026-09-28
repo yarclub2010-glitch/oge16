@@ -37,7 +37,8 @@ const state = {
   task: TASKS[0],
   busy: null, // 'run' | 'check'
   scores: store.get('scores', {}),
-  custom: [], // свои задания, открытые по ссылке или собранные в конструкторе
+  custom: [], // свои задания, собранные в конструкторе
+  linkTask: null, // задание, открытое по ссылке учителя: ученик видит только его
 };
 
 // ---------- Свои задания ----------
@@ -64,8 +65,19 @@ function addCustom(t) {
 }
 
 const allTasks = () => [...TASKS, ...state.custom];
-const findTask = (id) => taskById(id) || state.custom.find((t) => t.id === id);
-const levelName = (t) => (t.level === 0 ? CUSTOM_LEVEL_NAME : LEVELS[t.level]);
+const findTask = (id) => taskById(id) || state.custom.find((t) => t.id === id) || (state.linkTask?.id === id ? state.linkTask : undefined);
+const levelName = (t) => (t.level !== 0 ? LEVELS[t.level] : t === state.linkTask ? 'Задание от учителя' : CUSTOM_LEVEL_NAME);
+
+// Режим ссылки: без списка заданий, стрелок и конструктора — только задание учителя
+function setLinkTask(t) {
+  state.linkTask = t;
+  document.body.classList.toggle('link-mode', !!t);
+  // Логотип не ведёт к остальным заданиям
+  const brand = $('.brand');
+  if (t) brand.removeAttribute('href');
+  else brand.setAttribute('href', './');
+  brand.tabIndex = t ? -1 : 0;
+}
 const hashOf = (t) => '#' + (t.code ? HASH_PREFIX + t.code : t.id);
 
 // Задание из адреса страницы: #min-3 или #my=… Возвращает задание или null.
@@ -77,7 +89,8 @@ function taskFromHash() {
     log('err', `Не удалось открыть задание по ссылке: ${error}. Попросите учителя прислать ссылку ещё раз.`);
     return null;
   }
-  return addCustom(customTask(spec));
+  const t = customTask(spec);
+  return state.custom.find((x) => x.id === t.id) || t;
 }
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -195,7 +208,7 @@ function selectTask(id, { pushHash = true } = {}) {
   if (state.busy) runner.stop();
   const t = findTask(id) || TASKS[0];
   state.task = t;
-  store.set('task', t.id);
+  if (!state.linkTask) store.set('task', t.id);
   if (pushHash && location.hash !== hashOf(t)) history.replaceState(null, '', hashOf(t));
 
   $('#task-select').value = t.id;
@@ -212,7 +225,7 @@ function selectTask(id, { pushHash = true } = {}) {
   $('#solution').hidden = true;
   $('#btn-solution').setAttribute('aria-expanded', 'false');
   $('#help-row').hidden = !!t.hideSolution;
-  $('#custom-row').hidden = !t.code;
+  $('#custom-row').hidden = !t.code || t === state.linkTask;
   $('#check-result').hidden = true;
   updateStatusChip();
 
@@ -518,6 +531,7 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('hashchange', () => {
   const t = taskFromHash();
   if (!t || t === state.task) return;
+  setLinkTask(t.code ? t : null);
   fillTaskSelect();
   selectTask(t.id, { pushHash: false });
 });
@@ -526,7 +540,9 @@ window.addEventListener('hashchange', () => {
 
 $('#rules').innerHTML = COMMON_RULES.map((r) => `<li>${r}</li>`).join('');
 loadCustom();
-state.task = taskFromHash() || findTask(store.get('task', TASKS[0].id)) || TASKS[0];
+const linked = taskFromHash();
+if (linked?.code) setLinkTask(linked);
+state.task = linked || findTask(store.get('task', TASKS[0].id)) || TASKS[0];
 fillTaskSelect();
 selectTask(state.task.id);
 runner.ensure().catch(() => {});
