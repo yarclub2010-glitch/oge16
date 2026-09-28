@@ -33,7 +33,7 @@ const digitSum = (x) => String(x).split('').reduce((s, d) => s + Number(d), 0);
 
 // ---------- Задания ----------
 
-function task(def) {
+export function task(def) {
   return {
     format: 'zero', // 'zero' — ввод до 0, 'count' — сначала количество чисел
     maxCount: 1000,

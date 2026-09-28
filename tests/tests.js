@@ -4,6 +4,7 @@
 import { TASKS, buildTests, checkLibrary, parseInput, makeInput } from '../src/tasks.js';
 import { compareOutput, scoreOf } from '../src/checker.js';
 import { PythonRunner } from '../src/python/runner.js';
+import { AIMS, DEFAULT_SPEC, customTask, encodeSpec, decodeSpec, validateSpec } from '../src/custom.js';
 
 const results = [];
 async function test(name, fn) {
@@ -56,7 +57,111 @@ await test('Разбор входных данных', () => {
   assert(parseInput(z, makeInput(z, z.example)).nums.length === z.example.length);
 });
 
+// ---------- Свои задания ----------
+
+const spec = (over) => ({ ...DEFAULT_SPEC, ...over });
+const CONDS = [
+  { conds: [{ type: 'div', value: 3 }], join: 'and' },
+  { conds: [{ type: 'even', value: 0 }, { type: 'end', value: 4 }], join: 'and' },
+  { conds: [{ type: 'digits', value: 2 }, { type: 'ndiv', value: 7 }], join: 'and' },
+  { conds: [{ type: 'end', value: 3 }, { type: 'div', value: 8 }], join: 'or' },
+  { conds: [{ type: 'gt', value: 100 }, { type: 'lt', value: 200 }, { type: 'odd', value: 0 }], join: 'and' },
+];
+// Все цели × оба формата ввода, условия и границы чисел — по кругу
+const CUSTOM_SPECS = Object.keys(AIMS).flatMap((aim, i) => ['count', 'zero'].map((format, j) => spec({
+  aim,
+  format,
+  ...CONDS[(2 * i + j) % CONDS.length],
+  maxCount: [1000, 100, 50][(i + j) % 3],
+  maxValue: [30000, 300, 1000][(i + 2 * j) % 3],
+})));
+
+await test('Своё задание: ссылка кодируется и раскодируется', () => {
+  for (const s of [...CUSTOM_SPECS, spec({ title: 'Задача для 9 «Б» класса', hide: true })]) {
+    const { spec: back, error } = decodeSpec(encodeSpec(s));
+    assert(!error, error);
+    assert(encodeSpec(back) === encodeSpec(s), 'после раскодирования ссылка другая');
+    assert(customTask(back).id === customTask(s).id, 'другой id');
+  }
+  assert(decodeSpec(encodeSpec(spec({ hide: true }))).spec.hide === true, 'флаг «скрыть решение» потерян');
+});
+
+await test('Своё задание: испорченная ссылка не открывается', () => {
+  const b64 = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const good = { f: 'c', n: 100, m: 300, c: [['div', 3]], j: 'a', a: 'count' };
+  const bad = [
+    '', 'abc', '!!!', 'x'.repeat(5000),
+    b64({ ...good, c: [['div', 0]] }),
+    b64({ ...good, c: [['toString', 3]] }),
+    b64({ ...good, c: [] }),
+    b64({ ...good, m: 1e9 }),
+    b64({ ...good, n: 1.5 }),
+    b64({ ...good, a: 'eval' }),
+    b64({ ...good, t: 'x'.repeat(500) }),
+    b64({ ...good, c: [['gt', 300]] }),
+    b64({ ...good, c: [['div', 3], ['div', 3], ['div', 3], ['div', 3]] }),
+  ];
+  for (const code of bad) assert(decodeSpec(code).error, `открылась ссылка ${code.slice(0, 40)}`);
+  assert(decodeSpec(b64(good)).spec, 'правильная ссылка не открылась');
+});
+
+await test('Своё задание: невыполнимые условия отклоняются', () => {
+  assert(validateSpec(spec({ conds: [{ type: 'gt', value: 30000 }] })), 'нет подходящих чисел');
+  assert(validateSpec(spec({ conds: [{ type: 'lt', value: 30000 }], maxValue: 100 })), 'подходят все');
+  assert(validateSpec(spec({ conds: [{ type: 'digits', value: 5 }], maxValue: 9999 })), 'пятизначных нет');
+  assert(validateSpec(spec({ conds: [{ type: 'even', value: 0 }, { type: 'odd', value: 0 }] })), 'чётное и нечётное');
+  assert(validateSpec(spec({ maxCount: NaN })), 'пустое поле');
+  assert(!validateSpec(spec({})), 'задание по умолчанию');
+});
+
+await test('Своё задание: текст условия', () => {
+  const t = customTask(spec({ aim: 'max', conds: CONDS[1].conds }));
+  assert(t.goal === 'определяет максимальное чётное число, оканчивающееся на 4', t.goal);
+  assert(t.guarantee === 'В последовательности всегда имеется чётное число, оканчивающееся на 4.', t.guarantee);
+  const u = customTask(spec({ aim: 'count', ...CONDS[3] }));
+  assert(u.title === 'Количество чисел, оканчивающихся на 3 или кратных 8', u.title);
+  assert(customTask(spec({ title: '  Моё  ' })).title === 'Моё', 'своё название');
+  const v = customTask(spec({ aim: 'minNo', conds: [{ type: 'div', value: 7 }] }));
+  assert(v.title === 'Наименьшее число, кратное 7, или NO', v.title);
+  assert(v.goal === 'определяет минимальное число, кратное 7, или сообщает, что таких чисел нет (выводит NO)', v.goal);
+  const w = customTask(spec({ aim: 'maxNo', conds: [{ type: 'even', value: 0 }] }));
+  assert(w.title === 'Наибольшее чётное число или NO', w.title);
+});
+
+await test('Своё задание: примеры и особые случаи соответствуют условию', () => {
+  const problems = [];
+  for (const s of CUSTOM_SPECS) {
+    const t = customTask(s);
+    for (const test of [{ label: 'пример', nums: t.example }, ...t.special]) {
+      const { error } = parseInput(t, makeInput(t, test.nums));
+      if (error) problems.push(`${t.title}, ${test.label}: ${error}`);
+    }
+    if (!t.special.length) problems.push(`${t.title}: нет особых случаев`);
+  }
+  assert(!problems.length, problems.join('; '));
+});
+
 const runner = new PythonRunner();
+
+for (const s of CUSTOM_SPECS) {
+  const t = customTask(s);
+  await test(`Своё задание «${t.title}» (${s.format === 'count' ? 'количество' : 'до 0'}, до ${s.maxValue}): эталон получает 2 балла`, async () => {
+    const { score, failed } = await grade(runner, t, t.solution);
+    assert(score === 2, `${score} балла, не пройдены: ${failed.map((x) => x.label).join(', ')}\n${t.solution}`);
+  });
+}
+
+await test('Своё задание: решение без условия отбора теряет баллы', async () => {
+  const t = customTask(spec({ format: 'count', aim: 'sum' }));
+  const { score } = await grade(runner, t, t.solution.replace('x % 3 == 0', 'True'));
+  assert(score === 0, `получено ${score}`);
+});
+
+await test('Своё задание: минимум с начальным значением 1000 теряет баллы', async () => {
+  const t = customTask(spec({ format: 'zero', aim: 'min', conds: [{ type: 'end', value: 7 }] }));
+  const { score } = await grade(runner, t, t.solution.replace('m = 30001', 'm = 1000'));
+  assert(score < 2, `получено ${score}`);
+});
 
 for (const task of TASKS) {
   await test(`Эталонное решение «${task.title}» получает 2 балла`, async () => {

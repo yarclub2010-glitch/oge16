@@ -4,6 +4,8 @@ import { CodeEditor } from './editor.js';
 import { TASKS, LEVELS, COMMON_RULES, taskById, taskText, makeInput, parseInput, buildTests, randomExample } from './tasks.js';
 import { compareOutput, scoreOf, explainError } from './checker.js';
 import { PythonRunner } from './python/runner.js';
+import { CUSTOM_LEVEL_NAME, HASH_PREFIX, decodeSpec, customTask } from './custom.js';
+import { initMaker, taskLink, copyText } from './maker.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -35,7 +37,48 @@ const state = {
   task: TASKS[0],
   busy: null, // 'run' | 'check'
   scores: store.get('scores', {}),
+  custom: [], // свои задания, открытые по ссылке или собранные в конструкторе
 };
+
+// ---------- Свои задания ----------
+
+function loadCustom() {
+  const codes = store.get('custom', []);
+  state.custom = (Array.isArray(codes) ? codes : [])
+    .map((code) => decodeSpec(code).spec)
+    .filter(Boolean)
+    .map(customTask);
+}
+
+function saveCustom() {
+  store.set('custom', state.custom.map((t) => t.code));
+}
+
+// Добавляет задание в список «Свои задания» (если его там ещё нет) и возвращает его
+function addCustom(t) {
+  const known = state.custom.find((x) => x.id === t.id);
+  if (known) return known;
+  state.custom.push(t);
+  saveCustom();
+  return t;
+}
+
+const allTasks = () => [...TASKS, ...state.custom];
+const findTask = (id) => taskById(id) || state.custom.find((t) => t.id === id);
+const levelName = (t) => (t.level === 0 ? CUSTOM_LEVEL_NAME : LEVELS[t.level]);
+const hashOf = (t) => '#' + (t.code ? HASH_PREFIX + t.code : t.id);
+
+// Задание из адреса страницы: #min-3 или #my=… Возвращает задание или null.
+function taskFromHash() {
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (!hash.startsWith(HASH_PREFIX)) return taskById(hash) || null;
+  const { spec, error } = decodeSpec(hash.slice(HASH_PREFIX.length));
+  if (error) {
+    log('err', `Не удалось открыть задание по ссылке: ${error}. Попросите учителя прислать ссылку ещё раз.`);
+    return null;
+  }
+  return addCustom(customTask(spec));
+}
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -131,6 +174,12 @@ function fillTaskSelect() {
     });
     sel.append(group);
   }
+  if (state.custom.length) {
+    const group = document.createElement('optgroup');
+    group.label = 'Свои задания';
+    state.custom.forEach((t) => group.append(new Option(`${t.title}${scoreBadge(t.id)}`, t.id)));
+    sel.append(group);
+  }
   sel.value = state.task.id;
 }
 
@@ -144,13 +193,13 @@ function updateStatusChip() {
 
 function selectTask(id, { pushHash = true } = {}) {
   if (state.busy) runner.stop();
-  const t = taskById(id) || TASKS[0];
+  const t = findTask(id) || TASKS[0];
   state.task = t;
   store.set('task', t.id);
-  if (pushHash && location.hash !== '#' + t.id) history.replaceState(null, '', '#' + t.id);
+  if (pushHash && location.hash !== hashOf(t)) history.replaceState(null, '', hashOf(t));
 
   $('#task-select').value = t.id;
-  $('#task-level').textContent = LEVELS[t.level];
+  $('#task-level').textContent = levelName(t);
   $('#task-level').className = `chip lvl-${t.level}`;
   $('#task-title').textContent = t.title;
   $('#task-text').innerHTML = taskText(t);
@@ -162,6 +211,8 @@ function selectTask(id, { pushHash = true } = {}) {
   $('#solution-code').textContent = t.solution;
   $('#solution').hidden = true;
   $('#btn-solution').setAttribute('aria-expanded', 'false');
+  $('#help-row').hidden = !!t.hideSolution;
+  $('#custom-row').hidden = !t.code;
   $('#check-result').hidden = true;
   updateStatusChip();
 
@@ -172,9 +223,10 @@ function selectTask(id, { pushHash = true } = {}) {
   $('#output-note').innerHTML = '';
   updateExpected();
 
-  const idx = TASKS.indexOf(t);
+  const list = allTasks();
+  const idx = list.indexOf(t);
   $('#btn-prev').disabled = idx === 0;
-  $('#btn-next').disabled = idx === TASKS.length - 1;
+  $('#btn-next').disabled = idx === list.length - 1;
 }
 
 // ---------- Запуск ----------
@@ -352,8 +404,51 @@ $('#btn-run').addEventListener('click', runProgram);
 $('#btn-stop').addEventListener('click', () => runner.stop());
 $('#btn-check').addEventListener('click', checkSolution);
 $('#task-select').addEventListener('change', (e) => selectTask(e.target.value));
-$('#btn-prev').addEventListener('click', () => selectTask(TASKS[TASKS.indexOf(state.task) - 1].id));
-$('#btn-next').addEventListener('click', () => selectTask(TASKS[TASKS.indexOf(state.task) + 1].id));
+$('#btn-prev').addEventListener('click', () => selectTask(allTasks()[allTasks().indexOf(state.task) - 1].id));
+$('#btn-next').addEventListener('click', () => selectTask(allTasks()[allTasks().indexOf(state.task) + 1].id));
+
+let editing = null; // своё задание, открытое в конструкторе кнопкой «Изменить»
+const maker = initMaker({
+  onOpen(t) {
+    // Изменённое задание встаёт в списке на место старого
+    const old = editing ? state.custom.indexOf(editing) : -1;
+    if (old >= 0 && !state.custom.some((x) => x.id === t.id)) {
+      state.custom[old] = t;
+      saveCustom();
+    }
+    const added = addCustom(t);
+    fillTaskSelect();
+    selectTask(added.id);
+    log('info', 'Задание готово. Чтобы отправить его ученикам, нажмите «Ссылка» под кнопкой «Проверить решение».');
+  },
+});
+$('#btn-maker').addEventListener('click', () => {
+  editing = null;
+  maker.open();
+});
+$('#btn-custom-edit').addEventListener('click', () => {
+  editing = state.task;
+  maker.open(state.task.spec);
+});
+$('#btn-custom-link').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const link = taskLink(state.task.code);
+  if (await copyText(link)) {
+    btn.textContent = 'Скопировано ✓';
+    setTimeout(() => (btn.textContent = 'Ссылка'), 2000);
+    log('ok', 'Ссылка на задание скопирована — отправьте её ученикам.');
+  } else {
+    prompt('Скопируйте ссылку на задание:', link);
+  }
+});
+$('#btn-custom-remove').addEventListener('click', () => {
+  if (!confirm(`Убрать задание «${state.task.title}» из списка? Его можно будет снова открыть по ссылке.`)) return;
+  state.custom = state.custom.filter((t) => t !== state.task);
+  saveCustom();
+  state.task = TASKS[0];
+  fillTaskSelect();
+  selectTask(TASKS[0].id);
+});
 
 $('#btn-hint').addEventListener('click', (e) => {
   const open = $('#hint').hidden;
@@ -421,15 +516,17 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('hashchange', () => {
-  const id = location.hash.slice(1);
-  if (id && id !== state.task.id && taskById(id)) selectTask(id, { pushHash: false });
+  const t = taskFromHash();
+  if (!t || t === state.task) return;
+  fillTaskSelect();
+  selectTask(t.id, { pushHash: false });
 });
 
 // ---------- Старт ----------
 
 $('#rules').innerHTML = COMMON_RULES.map((r) => `<li>${r}</li>`).join('');
-const startId = taskById(location.hash.slice(1)) ? location.hash.slice(1) : store.get('task', TASKS[0].id);
-state.task = taskById(startId) || TASKS[0];
+loadCustom();
+state.task = taskFromHash() || findTask(store.get('task', TASKS[0].id)) || TASKS[0];
 fillTaskSelect();
 selectTask(state.task.id);
 runner.ensure().catch(() => {});
