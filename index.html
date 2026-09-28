@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тренажёр задания 16 ОГЭ</title>
+  <meta name="description" content="Онлайн-тренажёр задания 16 ОГЭ по информатике: программа обработки последовательности чисел на Python, автоматическая проверка на наборе тестов.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23289628'/%3E%3Cpath d='M9 11l6 5-6 5M17 22h7' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="./" title="На главную">
+      <svg class="brand-logo" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M9 11l6 5-6 5M17 22h7"/></svg>
+      <div class="brand-text">
+        <strong>Программа</strong>
+        <span>тренажёр задания 16 ОГЭ</span>
+      </div>
+    </a>
+    <span class="spacer"></span>
+    <a class="btn ghost link-15" href="../oge15/" title="Тренажёр задания 15: исполнитель Робот">Задание 15<span> — Робот</span></a>
+    <button class="btn ghost" id="btn-help" title="Справка по Python и тренажёру (F1)">Справка</button>
+  </header>
+
+  <main class="layout">
+    <aside class="side" aria-label="Задание">
+      <section id="panel-tasks" class="panel">
+        <div class="task-picker">
+          <button class="btn icon" id="btn-prev" title="Предыдущее задание" aria-label="Предыдущее задание">‹</button>
+          <select id="task-select" aria-label="Выбор задания"></select>
+          <button class="btn icon" id="btn-next" title="Следующее задание" aria-label="Следующее задание">›</button>
+        </div>
+
+        <article class="task-card">
+          <div class="task-meta">
+            <span class="chip" id="task-level"></span>
+            <span class="chip chip-score" id="task-status" hidden></span>
+          </div>
+          <h1 id="task-title"></h1>
+          <div id="task-text" class="task-text"></div>
+          <table class="example">
+            <thead><tr><th>Пример входных данных</th><th>Пример выходных данных</th></tr></thead>
+            <tbody><tr><td id="example-in"></td><td id="example-out"></td></tr></tbody>
+          </table>
+          <details class="rules">
+            <summary>Общие требования к решению</summary>
+            <ul id="rules"></ul>
+          </details>
+        </article>
+
+        <div class="task-actions">
+          <button class="btn primary big" id="btn-check">Проверить решение</button>
+          <div class="btn-row">
+            <button class="btn" id="btn-hint" aria-expanded="false">Подсказка</button>
+            <button class="btn" id="btn-solution" aria-expanded="false">Решение</button>
+          </div>
+        </div>
+
+        <div id="hint" class="note" hidden></div>
+        <div id="solution" class="solution" hidden>
+          <pre id="solution-code"></pre>
+          <button class="btn" id="btn-use-solution">Вставить в редактор</button>
+        </div>
+
+        <section id="check-result" class="check" hidden aria-live="polite"></section>
+      </section>
+    </aside>
+
+    <section class="pane pane-code" aria-label="Программа">
+      <div class="toolbar">
+        <button class="btn primary" id="btn-run" title="Выполнить (F9)"><span aria-hidden="true">▶</span> Выполнить</button>
+        <button class="btn" id="btn-stop" title="Остановить (Esc)" disabled>Стоп</button>
+        <span class="py-status" id="py-status"></span>
+        <span class="spacer"></span>
+        <div class="menu-wrap">
+          <button class="btn ghost" id="btn-file-menu" aria-haspopup="true" aria-expanded="false">Файл ▾</button>
+          <div class="menu" id="file-menu" hidden role="menu">
+            <button role="menuitem" id="btn-open-code">Открыть программу (.py)</button>
+            <button role="menuitem" id="btn-save-code">Сохранить программу (.py)</button>
+            <button role="menuitem" id="btn-new-code">Новая программа</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette" aria-label="Вставка конструкций">
+        <div class="palette-group">
+          <button data-snippet="x = int(input())">x = int(input())</button>
+          <button data-snippet="print(▮)">print()</button>
+        </div>
+        <div class="palette-group">
+          <button data-snippet="n = int(input())&#10;for i in range(n):&#10;    x = int(input())&#10;    ▮" class="kw">for i in range(n)</button>
+          <button data-snippet="x = int(input())&#10;while x != 0:&#10;    ▮&#10;    x = int(input())" class="kw">while x != 0</button>
+          <button data-snippet="if ▮:&#10;    " class="kw">if … :</button>
+          <button data-snippet="if ▮:&#10;    &#10;else:&#10;    " class="kw">if … else</button>
+        </div>
+        <div class="palette-group">
+          <button data-snippet=" % " class="op">%</button>
+          <button data-snippet=" // " class="op">//</button>
+          <button data-snippet=" == " class="op">==</button>
+          <button data-snippet=" != " class="op">!=</button>
+          <button data-snippet=" and " class="kw">and</button>
+          <button data-snippet=" or " class="kw">or</button>
+        </div>
+      </div>
+
+      <div id="editor" class="editor-host"></div>
+
+      <div class="console">
+        <div class="console-head">
+          <span>Сообщения</span>
+          <button class="btn ghost small" id="btn-clear-log">Очистить</button>
+        </div>
+        <div id="log" class="log" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="pane pane-io" aria-label="Ввод и вывод">
+      <div class="io-block io-input">
+        <div class="io-head">
+          <strong>Входные данные</strong>
+          <button class="btn small" id="btn-example" title="Данные из примера в условии">Пример</button>
+          <button class="btn small" id="btn-random" title="Случайные допустимые данные">Случайные</button>
+        </div>
+        <textarea id="input" class="io-text" spellcheck="false" wrap="off" aria-label="Входные данные: каждое число на отдельной строке"></textarea>
+        <div class="io-note" id="expected-note"></div>
+      </div>
+      <div class="io-block io-output">
+        <div class="io-head"><strong>Вывод программы</strong></div>
+        <pre id="output" class="io-text" aria-live="polite"></pre>
+        <div class="io-note" id="output-note"></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="help" class="help">
+    <div class="help-head">
+      <h2>Справка</h2>
+      <button class="btn ghost" id="btn-help-close" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="help-body">
+      <h3>Что такое задание 16</h3>
+      <p>Нужно написать программу, которая читает последовательность натуральных чисел и находит что-то одно: количество, сумму, минимум, максимум или среднее чисел с заданным свойством. На экзамене можно писать на любом языке; здесь — на Python.</p>
+
+      <h3>Два вида входных данных</h3>
+<pre class="code"># Сначала количество чисел, затем сами числа
+n = int(input())
+for i in range(n):
+    x = int(input())
+    # обработка x
+
+# Числа до 0 (0 — признак конца, не входит в последовательность)
+x = int(input())
+while x != 0:
+    # обработка x
+    x = int(input())   # не забудьте, иначе цикл бесконечный</pre>
+
+      <h3>Типовые проверки</h3>
+      <table>
+        <tr><td><code>x % 3 == 0</code></td><td>x кратно 3</td></tr>
+        <tr><td><code>x % 10 == 4</code></td><td>x оканчивается на 4</td></tr>
+        <tr><td><code>x % 2 == 0</code></td><td>x чётное</td></tr>
+        <tr><td><code>x % 7 != 0</code></td><td>x не кратно 7</td></tr>
+        <tr><td><code>x // 10 % 10</code></td><td>вторая цифра с конца (десятки)</td></tr>
+        <tr><td><code>10 &lt;= x &lt;= 99</code></td><td>x двузначное</td></tr>
+      </table>
+
+      <h3>Минимум и максимум</h3>
+      <p>Для максимума начните с 0 — все числа натуральные. Для минимума начните с числа, большего любого допустимого, например <code>30001</code>, если числа не превышают 30&nbsp;000. Частая ошибка — взять 1000 или 10000.</p>
+
+      <h3>Клавиши</h3>
+      <table>
+        <tr><td><kbd>F9</kbd> или <kbd>Ctrl</kbd>+<kbd>Enter</kbd></td><td>выполнить программу на входных данных справа</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>остановить</td></tr>
+        <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>отступ / убрать отступ (4 пробела)</td></tr>
+        <tr><td><kbd>Enter</kbd> после строки с двоеточием</td><td>редактор сам сделает отступ</td></tr>
+      </table>
+
+      <h3>Как проверяется решение</h3>
+      <p>Тренажёр запускает программу на наборе тестов: пример из условия, особые случаи (нет подходящих чисел, одно число, подходящее число первое или последнее, самые большие числа), случайные данные и тест с максимальным количеством чисел. Числа сравниваются как числа, поэтому <code>5</code> и <code>5.0</code> — одно и то же. Баллы — по критериям ОГЭ (максимум за задание 16 — 2 балла):</p>
+      <ul>
+        <li><b>2 балла</b> — программа правильно работает на всех тестах;</li>
+        <li><b>1 балл</b> — программа выдаёт неверный ответ на одном из тестов;</li>
+        <li><b>0 баллов</b> — неверные ответы на двух и более тестах.</li>
+      </ul>
+      <p class="muted small">Python работает прямо в браузере (Pyodide). При первом открытии он загружается из интернета — это может занять несколько секунд. Тренажёр не заменяет проверку экспертами на экзамене, но устроен по тем же правилам.</p>
+    </div>
+  </dialog>
+
+  <input type="file" id="file-input" accept=".py,.txt" hidden>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
