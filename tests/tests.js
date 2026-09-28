@@ -1,7 +1,7 @@
 // Автотесты: сравнение ответов, библиотека заданий и эталонные решения на настоящем Python.
 // Открыть tests/index.html через локальный сервер.
 
-import { TASKS, buildTests, checkLibrary, parseInput, makeInput } from '../src/tasks.js';
+import { TASKS, buildTests, checkLibrary, parseInput, makeInput, taskText } from '../src/tasks.js';
 import { compareOutput, scoreOf } from '../src/checker.js';
 import { PythonRunner } from '../src/python/runner.js';
 import { AIMS, DEFAULT_SPEC, customTask, encodeSpec, decodeSpec, validateSpec } from '../src/custom.js';
@@ -66,6 +66,8 @@ const CONDS = [
   { conds: [{ type: 'digits', value: 2 }, { type: 'ndiv', value: 7 }], join: 'and' },
   { conds: [{ type: 'end', value: 3 }, { type: 'div', value: 8 }], join: 'or' },
   { conds: [{ type: 'gt', value: 100 }, { type: 'lt', value: 200 }, { type: 'odd', value: 0 }], join: 'and' },
+  { conds: [{ type: 'dig2', value: 5 }], join: 'and' },
+  { conds: [{ type: 'dig2', value: 3 }, { type: 'div', value: 4 }], join: 'or' },
 ];
 // Все цели × оба формата ввода, условия и границы чисел — по кругу
 const CUSTOM_SPECS = Object.keys(AIMS).flatMap((aim, i) => ['count', 'zero'].map((format, j) => spec({
@@ -105,6 +107,37 @@ await test('Своё задание: испорченная ссылка не о
   assert(decodeSpec(b64(good)).spec, 'правильная ссылка не открылась');
 });
 
+await test('Своё задание: версия ссылки', () => {
+  const b64 = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const good = { f: 'c', n: 100, m: 300, c: [['div', 3]], j: 'a', a: 'count' };
+  assert(decodeSpec(b64(good)).spec.version === 1, 'ссылка без версии — версия 1');
+  assert(decodeSpec(b64({ ...good, v: 1 })).spec, 'версия 1 явно');
+  assert(/новой версии/.test(decodeSpec(b64({ ...good, v: 99 })).error || ''), 'будущая версия');
+  assert(decodeSpec(b64({ ...good, v: 'x' })).error, 'версия не число');
+  assert(encodeSpec({ ...spec({}), version: 1 }) === encodeSpec(spec({})), 'версия 1 не пишется в ссылку');
+});
+
+// Разосланные ссылки должны открывать то же самое задание: сверка со слепком
+await test('Своё задание: готовые ссылки не меняются (tests/custom-v1.json)', async () => {
+  const snap = await (await fetch(new URL('./custom-v1.json', import.meta.url))).json();
+  const hash = async (v) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(v))))]
+    .slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const changed = [];
+  for (const [code, want] of Object.entries(snap)) {
+    const { spec: s, error } = decodeSpec(code);
+    if (error) {
+      changed.push(`${want.title}: ${error}`);
+      continue;
+    }
+    const t = customTask(s);
+    const got = { id: t.id, text: taskText(t), example: t.example, exampleAnswer: t.answer(t.example), special: t.special, hint: t.hint, solution: t.solution, hideSolution: t.hideSolution };
+    if (t.title !== want.title) changed.push(`${want.title}: название`);
+    for (const [k, v] of Object.entries(got)) if ((await hash(v)) !== want[k]) changed.push(`${want.title}: ${k}`);
+  }
+  assert(Object.keys(snap).length >= 20, 'слепок пустой');
+  assert(!changed.length, 'изменилось: ' + changed.join('; '));
+});
+
 await test('Своё задание: невыполнимые условия отклоняются', () => {
   assert(validateSpec(spec({ conds: [{ type: 'gt', value: 30000 }] })), 'нет подходящих чисел');
   assert(validateSpec(spec({ conds: [{ type: 'lt', value: 30000 }], maxValue: 100 })), 'подходят все');
@@ -126,6 +159,11 @@ await test('Своё задание: текст условия', () => {
   assert(v.goal === 'определяет минимальное число, кратное 7, или сообщает, что таких чисел нет (выводит NO)', v.goal);
   const w = customTask(spec({ aim: 'maxNo', conds: [{ type: 'even', value: 0 }] }));
   assert(w.title === 'Наибольшее чётное число или NO', w.title);
+  const d = customTask(spec({ aim: 'countMin', conds: [{ type: 'dig2', value: 5 }] }));
+  assert(d.goal === 'определяет количество чисел, у которых вторая цифра с конца равна 5, и минимальное из них', d.goal);
+  assert(d.answer([150, 57, 51, 3]) === '3\n51', d.answer([150, 57, 51, 3]));
+  const e = customTask(spec({ aim: 'sumCount' }));
+  assert(e.answer([3, 4, 6]) === '9\n2' && e.answer([1, 2]) === '0\n0', 'сумма и количество');
 });
 
 await test('Своё задание: примеры и особые случаи соответствуют условию', () => {

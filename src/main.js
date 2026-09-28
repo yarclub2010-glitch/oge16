@@ -437,7 +437,66 @@ const maker = initMaker({
 });
 $('#btn-maker').addEventListener('click', () => {
   editing = null;
+  updateLibraryCount();
   maker.open();
+});
+
+// ---------- Список «Свои задания» в файле ----------
+
+const LIB_FILE = 'oge16-svoi-zadaniya.json';
+
+function updateLibraryCount() {
+  const n = state.custom.length;
+  $('#mk-lib-count').textContent = n ? `Свои задания: ${n}` : 'Своих заданий пока нет';
+  $('#mk-lib-save').disabled = !n;
+}
+
+$('#mk-lib-save').addEventListener('click', () => {
+  const data = {
+    type: 'oge16-custom-tasks',
+    saved: new Date().toISOString().slice(0, 10),
+    tasks: state.custom.map((t) => ({ title: t.title, code: t.code, link: taskLink(t.code) })),
+  };
+  download(LIB_FILE, JSON.stringify(data, null, 2) + '\n');
+});
+
+const libInput = $('#lib-file-input');
+$('#mk-lib-load').addEventListener('click', () => libInput.click());
+libInput.addEventListener('change', async () => {
+  const file = libInput.files[0];
+  libInput.value = '';
+  if (!file || file.size > 1_000_000) return;
+  // Берём коды из сохранённого списка или из любых ссылок вида …#my=… в тексте
+  const text = await file.text();
+  let codes = [...text.matchAll(/my=([\w-]+)/g)].map((m) => m[1]);
+  try {
+    const data = JSON.parse(text);
+    if (Array.isArray(data?.tasks)) codes = data.tasks.map((t) => t?.code).filter((c) => typeof c === 'string');
+  } catch {
+    // не JSON — остаются ссылки из текста
+  }
+  const unique = [...new Set(codes)];
+  let added = 0;
+  let bad = 0;
+  for (const code of unique) {
+    const { spec } = decodeSpec(code);
+    if (!spec) {
+      bad++;
+      continue;
+    }
+    const before = state.custom.length;
+    addCustom(customTask(spec));
+    if (state.custom.length > before) added++;
+  }
+  saveCustom();
+  fillTaskSelect();
+  updateLibraryCount();
+  const parts = [`добавлено заданий: ${added}`];
+  if (unique.length - added - bad) parts.push(`уже были в списке: ${unique.length - added - bad}`);
+  if (bad) parts.push(`не удалось прочитать: ${bad}`);
+  const message = `Файл ${file.name}: ${unique.length ? parts.join(', ') : 'заданий не найдено'}.`;
+  log(added ? 'ok' : 'warn', message);
+  $('#mk-lib-count').textContent = message;
 });
 $('#btn-custom-edit').addEventListener('click', () => {
   editing = state.task;

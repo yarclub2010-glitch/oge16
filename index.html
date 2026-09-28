@@ -201,6 +201,12 @@ while x != 0:
     </div>
     <div class="help-body">
       <p class="muted small">Соберите задание из готовых блоков. Условие, пример, тесты и эталонное решение тренажёр составит сам. Готовое задание открывается по ссылке — отправьте её ученикам.</p>
+      <div class="mk-library">
+        <span id="mk-lib-count" class="small"></span>
+        <span class="spacer"></span>
+        <button type="button" class="btn small" id="mk-lib-save" title="Сохранить список «Свои задания» в файл — например, чтобы перенести на другой компьютер">Сохранить в файл</button>
+        <button type="button" class="btn small" id="mk-lib-load" title="Добавить задания из сохранённого файла">Загрузить из файла</button>
+      </div>
       <form id="maker-form" class="maker-form" autocomplete="off">
         <fieldset>
           <legend>Входные данные</legend>
@@ -268,6 +274,7 @@ while x != 0:
   </dialog>
 
   <input type="file" id="file-input" accept=".py,.txt" hidden>
+  <input type="file" id="lib-file-input" accept=".json,.txt" hidden>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

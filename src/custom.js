@@ -1,6 +1,11 @@
 // Свои задания учителя: сборка из готовых блоков и упаковка в ссылку.
 // Описание задания (spec) — это только выбранные блоки и числа; условие, пример,
 // особые случаи, эталонный ответ и решение тренажёр строит сам.
+//
+// ВАЖНО: разосланная ссылка должна всегда открывать то же самое задание.
+// Нельзя менять то, что видит ученик по ссылкам текущей версии: название, текст условия,
+// пример, особые случаи, подсказку, решение (tests/custom-v1.json — слепок, автотест сверяет).
+// Чтобы что-то улучшить, увеличьте SPEC_VERSION и сохраните старое поведение для старых версий.
 
 import { task } from './tasks.js';
 
@@ -9,6 +14,7 @@ export const HASH_PREFIX = 'my=';
 const MAX_CONDS = 3;
 const MAX_TITLE = 80;
 const MAX_CODE = 1000;
+export const SPEC_VERSION = 1; // версия 1 в ссылке не записывается
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -66,6 +72,11 @@ export const COND_TYPES = {
     pl: (v) => `меньших ${fmt(v)}`, sg: (v) => `меньшее ${fmt(v)}`,
     py: (v) => `x < ${v}`, test: (v) => (x) => x < v,
   },
+  dig2: {
+    label: 'вторая цифра с конца', min: 1, max: 9,
+    pl: (v) => `у которых вторая цифра с конца равна ${v}`, sg: (v) => `у которого вторая цифра с конца равна ${v}`,
+    py: (v) => `x // 10 % 10 == ${v}`, test: (v) => (x) => Math.floor(x / 10) % 10 === v,
+  },
   digits: {
     label: 'количество цифр', min: 1, max: 5, adj: true,
     pl: (v) => DIGITS[v][0], sg: (v) => DIGITS[v][1],
@@ -81,14 +92,16 @@ export const hasValue = (type) => 'min' in COND_TYPES[type];
 export const AIMS = {
   count: 'количество',
   sum: 'сумму',
+  sumCount: 'сумму и количество',
   max: 'максимум',
   min: 'минимум',
   maxNo: 'максимум или NO',
   minNo: 'минимум или NO',
   avg: 'среднее арифметическое или NO',
   countMax: 'количество и максимум',
+  countMin: 'количество и минимум',
 };
-const GUARANTEED = ['max', 'min', 'countMax'];
+const GUARANTEED = ['max', 'min', 'countMax', 'countMin'];
 
 export const DEFAULT_SPEC = {
   format: 'count',
@@ -164,6 +177,7 @@ export function encodeSpec(spec) {
   };
   if (spec.title.trim()) short.t = spec.title.trim();
   if (spec.hide) short.h = 1;
+  if ((spec.version ?? 1) !== 1) short.v = spec.version;
   return toBase64Url(JSON.stringify(short));
 }
 
@@ -186,7 +200,11 @@ export function decodeSpec(code) {
     aim: short.a,
     title: short.t === undefined ? '' : short.t,
     hide: short.h === 1,
+    version: short.v === undefined ? 1 : short.v,
   };
+  if (!isInt(spec.version, 1, SPEC_VERSION)) {
+    return { error: 'ссылка сделана в более новой версии тренажёра — обновите страницу (Ctrl+F5)' };
+  }
   const error = validateSpec(spec);
   return error ? { error: 'ссылка на задание повреждена: ' + error } : { spec };
 }
@@ -239,6 +257,18 @@ function texts(spec) {
         goal: `вычисляет среднее арифметическое ${pl}${c(pl)} ${no}`,
         output: `Программа должна вывести среднее арифметическое ${pl}${c(pl)} с точностью не менее десятых, или вывести NO, если таких чисел нет.`,
       };
+    case 'sumCount':
+      return {
+        title: `Сумма и количество ${pl}`,
+        goal: `определяет сумму ${pl}${c(pl)} и их количество`,
+        output: `Программа должна вывести два числа, каждое на отдельной строке: сначала сумму ${pl}, затем их количество.`,
+      };
+    case 'countMin':
+      return {
+        title: `Количество и минимум ${pl}`,
+        goal: `определяет количество ${pl}${c(pl)} и минимальное из них`,
+        output: `Программа должна вывести два числа, каждое на отдельной строке: сначала количество ${pl}, затем минимальное из них.`,
+      };
     case 'countMax':
       return {
         title: `Количество и максимум ${pl}`,
@@ -265,6 +295,8 @@ function answerFn(spec, pred) {
       case 'minNo': return b.length ? String(Math.min(...b)) : 'NO';
       case 'avg': return b.length ? String(Number((sum / b.length).toFixed(6))) : 'NO';
       case 'countMax': return `${b.length}\n${Math.max(...b)}`;
+      case 'countMin': return `${b.length}\n${Math.min(...b)}`;
+      case 'sumCount': return `${sum}\n${b.length}`;
     }
   };
 }
@@ -297,6 +329,14 @@ function solutionCode(spec) {
       init: ['s = 0', 'k = 0'], body: [`if ${cond}:`, '    s += x', '    k += 1'],
       end: ['if k == 0:', "    print('NO')", 'else:', '    print(s / k)'],
     },
+    countMin: {
+      init: ['k = 0', `m = ${big}`], body: [`if ${cond}:`, '    k += 1', '    if x < m:', '        m = x'],
+      end: ['print(k)', 'print(m)'],
+    },
+    sumCount: {
+      init: ['s = 0', 'k = 0'], body: [`if ${cond}:`, '    s += x', '    k += 1'],
+      end: ['print(s)', 'print(k)'],
+    },
     countMax: {
       init: ['k = 0', 'm = 0'], body: [`if ${cond}:`, '    k += 1', '    if x > m:', '        m = x'],
       end: ['print(k)', 'print(m)'],
@@ -324,6 +364,8 @@ function hintText(spec) {
     minNo: `Начните с ${big} — это больше любого допустимого числа. Если после цикла значение не изменилось, подходящих чисел не было — выведите NO.`,
     avg: 'Накопите сумму и количество подходящих чисел. После цикла: если количество равно 0, выведите <code>NO</code>, иначе — <code>s / k</code>. Деление <code>//</code> отбросит дробную часть, и ответ будет неверным.',
     countMax: 'В одном цикле ведите сразу две переменные: счётчик и максимум. Выведите их двумя вызовами <code>print</code>.',
+    countMin: `В одном цикле ведите сразу две переменные: счётчик и минимум. Минимум начните с ${big} — это больше любого допустимого числа. Выведите их двумя вызовами <code>print</code>.`,
+    sumCount: 'В одном цикле накапливайте сумму подходящих чисел и считайте их количество. Выведите их двумя вызовами <code>print</code>: сначала сумму, затем количество.',
   }[spec.aim];
   return `${loop} ${cond} ${aim}`;
 }
@@ -385,7 +427,7 @@ function makeSpecial(spec, fits, misses) {
 
   if (!GUARANTEED.includes(spec.aim)) add('Нет подходящих чисел', [misses[0], miss, maxMiss]);
   add('Одно число, и оно подходит', [maxFit]);
-  if (['count', 'sum', 'avg'].includes(spec.aim)) {
+  if (['count', 'sum', 'avg', 'sumCount'].includes(spec.aim)) {
     add('Все числа подходят', [fit, maxFit, fits[0]]);
     add('Подходят первое и последнее числа', [fits[0], miss, maxFit]);
   }
@@ -394,7 +436,7 @@ function makeSpecial(spec, fits, misses) {
     add('Подходящее число только последнее', [miss, miss2, fit]);
     add('Самое большое число не подходит', [maxMiss, fits[0]], maxMiss > fits[0]);
   }
-  if (['min', 'minNo'].includes(spec.aim)) {
+  if (['min', 'minNo', 'countMin'].includes(spec.aim)) {
     add('Подходящее число одно, большое и последнее', [miss, miss2, maxFit]);
     add('Подходящее число первое', [fits[0], miss2, maxFit]);
     add('Самое маленькое число не подходит', [minMiss, maxFit], minMiss < maxFit);

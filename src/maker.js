@@ -1,6 +1,6 @@
 // Окно «Своё задание»: учитель собирает задание из блоков и получает ссылку.
 
-import { COND_TYPES, AIMS, DEFAULT_SPEC, HASH_PREFIX, hasValue, validateSpec, customTask, autoTitle } from './custom.js';
+import { COND_TYPES, AIMS, DEFAULT_SPEC, HASH_PREFIX, SPEC_VERSION, hasValue, validateSpec, customTask, autoTitle } from './custom.js';
 import { taskText, makeInput, buildTests } from './tasks.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -77,6 +77,7 @@ export function initMaker({ onOpen }) {
       aim: $('#mk-aim').value,
       title: $('#mk-title').value,
       hide: $('#mk-hide').checked,
+      version: SPEC_VERSION,
     };
   }
 
