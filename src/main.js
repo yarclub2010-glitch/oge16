@@ -1,6 +1,7 @@
 // Тренажёр задания 16 ОГЭ: связывает редактор, запуск Python и проверку.
 
 import { CodeEditor } from './editor.js';
+import { reportScore } from './platform.js';
 import { TASKS, LEVELS, COMMON_RULES, taskById, taskText, makeInput, parseInput, buildTests, randomExample } from './tasks.js';
 import { compareOutput, scoreOf, explainError } from './checker.js';
 import { PythonRunner } from './python/runner.js';
@@ -326,6 +327,7 @@ async function checkSolution() {
     });
     const failed = verdicts.filter((v) => !v.ok).length;
     const score = scoreOf(failed);
+    reportScore(16, t.id, score, 2);
     const firstError = verdicts.find((v) => v.error)?.error;
     if (firstError) reportError(firstError);
 
