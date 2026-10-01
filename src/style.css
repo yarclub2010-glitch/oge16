@@ -787,3 +787,6 @@ a.btn { display: inline-flex; align-items: center; text-decoration: none; }
 .link-mode .task-picker, .link-mode #btn-maker,
 .link-mode .link-13, .link-mode .link-14, .link-mode .link-15 { display: none; }
 .link-mode .brand { pointer-events: none; }
+
+/* Внутри платформы репетитора готовое решение не показываем: балл идёт в домашнее задание */
+.in-platform #btn-solution, .in-platform #solution, .in-platform #btn-use-solution { display: none !important; }

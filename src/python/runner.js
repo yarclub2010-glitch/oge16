@@ -58,7 +58,10 @@ export class PythonRunner {
 
   onMessage(msg) {
     const job = this.job;
-    if (!job || msg.id !== job.id) return;
+    if (!job || !msg || msg.id !== job.id) return;
+    // Программа ученика может слать в поток свои сообщения — принимаем только правильные по форме
+    if ((msg.type === 'start' || msg.type === 'result') && !Number.isInteger(msg.index)) return;
+    if (msg.type === 'result' && typeof msg.out !== 'string') return;
     if (msg.type === 'start') {
       clearTimeout(job.timer);
       job.timer = setTimeout(() => {

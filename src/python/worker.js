@@ -34,7 +34,10 @@ def _run_json(src, data):
 
     err = None
     saved = sys.stdout, sys.stdin, builtins.input
+    hidden = {m: sys.modules.get(m) for m in ('js', 'pyodide', 'pyodide_js', 'pyodide.ffi')}
     sys.stdout, sys.stdin, builtins.input = out, inp, _input
+    for m in hidden:
+        sys.modules[m] = None  # import js / pyodide из программы ученика не сработает
     try:
         exec(code, {'__name__': '__main__'})
     except _TooMuchOutput:
@@ -49,6 +52,11 @@ def _run_json(src, data):
         err = {'type': type(e).__name__, 'message': str(e), 'line': line}
     finally:
         sys.stdout, sys.stdin, builtins.input = saved
+        for m, mod in hidden.items():
+            if mod is None:
+                sys.modules.pop(m, None)
+            else:
+                sys.modules[m] = mod
     return json.dumps({'out': out.getvalue(), 'error': err})
 `;
 

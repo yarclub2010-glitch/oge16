@@ -1,7 +1,7 @@
 // Тренажёр задания 16 ОГЭ: связывает редактор, запуск Python и проверку.
 
 import { CodeEditor } from './editor.js';
-import { reportScore } from './platform.js';
+import { inPlatform, reportScore } from './platform.js';
 import { TASKS, LEVELS, COMMON_RULES, taskById, taskText, makeInput, parseInput, buildTests, randomExample } from './tasks.js';
 import { compareOutput, scoreOf, explainError } from './checker.js';
 import { PythonRunner } from './python/runner.js';
@@ -83,7 +83,12 @@ const hashOf = (t) => '#' + (t.code ? HASH_PREFIX + t.code : t.id);
 
 // Задание из адреса страницы: #min-3 или #my=… Возвращает задание или null.
 function taskFromHash() {
-  const hash = decodeURIComponent(location.hash.slice(1));
+  let hash;
+  try {
+    hash = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    return null; // испорченная ссылка — открываем тренажёр как обычно
+  }
   if (!hash.startsWith(HASH_PREFIX)) return taskById(hash) || null;
   const { spec, error } = decodeSpec(hash.slice(HASH_PREFIX.length));
   if (error) {
@@ -328,6 +333,7 @@ async function checkSolution() {
     const failed = verdicts.filter((v) => !v.ok).length;
     const score = scoreOf(failed);
     reportScore(16, t.id, score, 2);
+    if (inPlatform) runner.kill(); // следующая проверка — в чистом Python, без следов прошлой программы
     const firstError = verdicts.find((v) => v.error)?.error;
     if (firstError) reportError(firstError);
 
