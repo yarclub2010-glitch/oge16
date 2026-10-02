@@ -157,12 +157,15 @@ export class CodeEditor {
   }
 
   // Вставка готовой конструкции с отступом текущей строки. «▮» — место курсора.
-  insertSnippet(snippet) {
+  // inline — вставить прямо в позицию курсора (операторы), иначе конструкция начинается с новой строки
+  insertSnippet(snippet, { inline = false } = {}) {
     if (this.input.readOnly) return;
     const { pos, start, line } = this.currentLineInfo();
     const indentStr = line.match(/^\s*/)[0];
     let text = snippet.split('\n').map((l, i) => (i === 0 ? l : indentStr + l)).join('\n');
-    if (line.trim() !== '' && pos !== start) text = '\n' + indentStr + text;
+    if (!inline && line.trim() !== '' && pos !== start) text = '\n' + indentStr + text;
+    // Пробел перед курсором уже есть — второй не нужен
+    if (inline && /\s$/.test(this.input.value.slice(0, this.input.selectionStart))) text = text.replace(/^ +/, '');
     const caret = text.indexOf('▮');
     text = text.replace('▮', '');
     const insertPos = this.input.selectionStart;

@@ -556,7 +556,9 @@ $('#btn-random').addEventListener('click', () => {
   $('#output-note').innerHTML = '';
 });
 
-$$('.palette [data-snippet]').forEach((b) => b.addEventListener('click', () => editor.insertSnippet(b.dataset.snippet)));
+$$('.palette [data-snippet]').forEach((b) =>
+  b.addEventListener('click', () => editor.insertSnippet(b.dataset.snippet, { inline: 'inline' in b.dataset })),
+);
 
 $('#btn-clear-log').addEventListener('click', () => {
   logEl.innerHTML = '';
